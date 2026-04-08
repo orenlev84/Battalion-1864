@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 
 # הגדרות תצוגה
-st.set_page_config(page_title="מערכת שו\"ב גדודית", layout="wide")
+st.set_page_config(page_title='מערכת שו"ב גדודית', layout="wide")
 
 # עיצוב מותאם למובייל
 st.markdown("""
@@ -17,7 +17,6 @@ st.markdown("""
 if 'all_data' not in st.session_state:
     st.session_state.all_data = pd.DataFrame(columns=['פלוגה', 'סוג_דיווח', 'פרטים', 'כמות', 'זמן'])
 if 'personnel' not in st.session_state:
-    # מאגר כוח אדם בסיסי
     st.session_state.personnel = pd.DataFrame(columns=['פלוגה', 'שם', 'סטטוס_גיוס', 'מיקום'])
 
 # --- סרגל צד לניווט ---
@@ -51,45 +50,9 @@ if view_mode == "ניהול פלוגה":
         with st.form("personnel_form"):
             p_name = st.text_input("שם החייל (או קוד/מספר)")
             p_status = st.selectbox("סטטוס גיוס", ["מגוייס", "משוחרר/מילואים", "בצוו 8"])
-            p_loc = st.selectbox("מיקום נוכחי", ["ביחידה (בפעילות)", "בבית (אפטר)", "במקום אחר (קורס/בי"ח)"])
+            # שים לב לשימוש במירכאות בודדות כדי לפתור את בעיית הבי"ח
+            p_loc = st.selectbox("מיקום נוכחי", ["ביחידה (בפעילות)", "בבית (אפטר)", 'במקום אחר (קורס/בי"ח)'])
             submit_p = st.form_submit_button("עדכן חייל")
             
             if submit_p:
-                # הסרת רישום קודם של החייל אם קיים ועדכון
                 st.session_state.personnel = st.session_state.personnel[st.session_state.personnel['שם'] != p_name]
-                new_p = pd.DataFrame([[selected_company, p_name, p_status, p_loc]], 
-                                     columns=['פלוגה', 'שם', 'סטטוס_גיוס', 'מיקום'])
-                st.session_state.personnel = pd.concat([st.session_state.personnel, new_p], ignore_index=True)
-                st.success(f"הסטטוס של {p_name} עודכן")
-
-# --- תצוגת גדוד (מבט מג"ד) ---
-else:
-    st.title("תמונת מצב גדודית - מבט על")
-    
-    # סיכום כוח אדם גדודי
-    st.header("📊 סיכום כוח אדם")
-    col_a, col_b, col_c = st.columns(3)
-    total_deployed = len(st.session_state.personnel[st.session_state.personnel['סטטוס_גיוס'] == "מגוייס"])
-    in_unit = len(st.session_state.personnel[st.session_state.personnel['מיקום'] == "ביחידה (בפעילות)"])
-    at_home = len(st.session_state.personnel[st.session_state.personnel['מיקום'] == "בבית (אפטר)"])
-    
-    col_a.metric("סך מגוייסים", total_deployed)
-    col_b.metric("ביחידה", in_unit)
-    col_c.metric("בבית", at_home)
-    
-    st.subheader("פירוט לפי פלוגות")
-    if not st.session_state.personnel.empty:
-        summary_table = st.session_state.personnel.groupby(['פלוגה', 'מיקום']).size().unstack(fill_value=0)
-        st.dataframe(summary_table, use_container_width=True)
-    
-    st.divider()
-    
-    # סיכום תחמושת גדודי
-    st.header("💣 צריכת תחמושת גדודית")
-    if not st.session_state.all_data.empty:
-        ammo_df = st.session_state.all_data[st.session_state.all_data['סוג_דיווח'] == "תחמושת"]
-        ammo_summary = ammo_df.groupby(['פלוגה', 'פרטים'])['כמות'].sum().unstack(fill_value=0)
-        st.bar_chart(ammo_summary)
-        st.dataframe(ammo_summary, use_container_width=True)
-    else:
-        st.info("טרם התקבלו דיווחי תחמושת מהפלוגות")
