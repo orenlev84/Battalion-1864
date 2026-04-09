@@ -3,188 +3,147 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# --- הגדרות תצוגה מתקדמות ---
+# --- הגדרות תצוגה ---
 st.set_page_config(
-    page_title="חרב שאול - שו\"ב גדודי",
+    page_title="חרב שאול - כניסה למערכת",
     page_icon="⚔️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# --- עיצוב CSS מותאם אישית למובייל (ידידותי למשתמש) ---
+# --- עיצוב CSS (כולל מסך כניסה) ---
 st.markdown("""
     <style>
-    /* עיצוב כללי ופונטים */
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
-    html, body, [class*="css"]  { font-family: 'Assistant', sans-serif; }
-
-    /* עיצוב סרגל הצד */
-    .css-1d391kg { background-color: #f0f2f6; }
-    .sidebar-logo { display: block; margin-left: auto; margin-right: auto; width: 80px; }
-    .sidebar-title { text-align: center; color: #1e3a8a; font-weight: bold; margin-top: -10px; margin-bottom: 20px; }
-
-    /* עיצוב כפתורים גדולים למובייל */
-    .stButton>button { 
-        width: 100%; height: 3.5em; font-size: 18px; font-weight: bold; 
-        border-radius: 12px; transition: all 0.3s;
-    }
-    .stButton>button:hover { background-color: #1e3a8a; color: white; transform: scale(1.02); }
-
-    /* עיצוב מדדים (Metrics) - קוביות נתונים */
-    [data-testid="stMetricValue"] { font-size: 2.5rem; font-weight: bold; color: #1e3a8a; }
-    [data-testid="stMetricLabel"] { font-size: 1.1rem; color: #4b5563; }
-    .stMetric { 
-        background-color: white; padding: 15px; border-radius: 15px; 
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
-        border: 1px solid #e5e7eb;
-    }
-
-    /* עיצוב כרטיסי אירועים חריגים */
-    .event-card { 
-        background-color: #fef2f2; border: 2px solid #ef4444; border-radius: 10px; 
-        padding: 10px; margin-bottom: 10px; 
-    }
-    .event-time { color: #991b1b; font-weight: bold; font-size: 0.9em; }
-    .event-co { color: #b91c1c; font-weight: bold; }
-    .event-desc { color: #000; margin-top: 5px; }
-
-    /* עיצוב כרטיסיות (Tabs) */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] { 
-        background-color: #f3f4f6; border-radius: 10px; padding: 10px 20px; 
-        color: #4b5563; font-weight: bold; 
-    }
-    .stTabs [data-baseweb="tab"][aria-selected="true"] { background-color: #1e3a8a; color: white; }
-
+    html, body, [class*="css"]  { font-family: 'Assistant', sans-serif; text-align: right; }
+    .stButton>button { width: 100%; height: 3em; border-radius: 12px; font-weight: bold; }
+    .login-box { background-color: #f0f2f6; padding: 20px; border-radius: 15px; border: 1px solid #d1d5db; }
+    .sidebar-title { text-align: center; color: #1e3a8a; font-weight: bold; font-size: 1.5em; }
+    .event-card { background-color: #fef2f2; border: 2px solid #ef4444; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- טעינת נתונים בזיכרון (יימחק ברענון) ---
+# --- ניהול נתונים בזיכרון ---
 if 'all_data' not in st.session_state:
     st.session_state.all_data = pd.DataFrame(columns=['פלוגה', 'סוג_דיווח', 'פרטים', 'כמות', 'זמן'])
 if 'personnel' not in st.session_state:
     st.session_state.personnel = pd.DataFrame(columns=['פלוגה', 'שם', 'סטטוס_גיוס', 'מיקום'])
 if 'events' not in st.session_state:
     st.session_state.events = pd.DataFrame(columns=['זמן', 'פלוגה', 'סוג_אירוע', 'תיאור'])
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'user_role' not in st.session_state:
+    st.session_state.user_role = None
 
-# --- סרגל צד (Sidebar) מעוצב ---
-with st.sidebar:
-    # 1. הוספת לוגו וכותרת "חרב שאול"
-    logo_path = "battalion_logo.png" # שם הקובץ שנעלה ל-GitHub
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=100)
-    
-    st.markdown('<div class="sidebar-title">חרב שאול</div>', unsafe_allow_html=True)
-    st.title("🗺️ תפריט")
-    view_mode = st.radio("בחר תצוגה:", ["ניהול פלוגה", "תמונת מצב גדודית"], index=1)
-    
-    st.divider()
-    
-    list_of_companies = ["ירדן", "גלבוע", "תענך", "עפולה", "פלס\"ם אג\"ם"]
+# --- מילון סיסמאות והרשאות ---
+passwords = {
+    "magad123": "מג\"ד",
+    "yarden123": "ירדן",
+    "gilboa123": "גלבוע",
+    "taanach123": "תענך",
+    "hafoola123": "עפולה",
+    "palsam123": "פלס\"ם אג\"ם"
+}
 
-# --- תצוגת פלוגה (למ"פ/סמ"פ) ---
-if view_mode == "ניהול פלוגה":
-    selected_company = st.sidebar.selectbox("בחר את הפלוגה שלך:", list_of_companies)
-    st.title(f"📊 ניהול נתונים - {selected_company}")
-    
-    tab1, tab2, tab3 = st.tabs(["💣 תחמושת", "👥 כוח אדם", "⚠️ אירועים"])
-    
-    with tab1:
-        st.subheader("📝 דיווח צריכה")
-        col1, col2 = st.columns(2)
-        with col1:
-            item = st.selectbox("סוג תחמושת", ["5.56", "7.62", "רימון", "לאו", "מטול"])
-        with col2:
-            amount = st.number_input("כמות שנורתה", min_value=1, step=1)
+# --- מסך כניסה ---
+def login_screen():
+    st.container()
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        if os.path.exists("battalion_logo.png"):
+            st.image("battalion_logo.png", width=150)
+        st.title("כניסה למערכת חרב שאול")
         
-        if st.button(f"שלח דיווח ({selected_company})"):
-            new_report = pd.DataFrame([[selected_company, "תחמושת", item, amount, datetime.now().strftime("%H:%M")]], 
-                                      columns=['פלוגה', 'סוג_דיווח', 'פרטים', 'כמות', 'זמן'])
-            st.session_state.all_data = pd.concat([st.session_state.all_data, new_report], ignore_index=True)
-            st.success(f"הדיווח נשמר 👍")
-
-    with tab2:
-        st.subheader("📝 עדכון סטטוס חייל")
-        with st.form("personnel_form"):
-            p_name = st.text_input("שם החייל / מספר")
-            p_status = st.selectbox("סטטוס גיוס", ["מגוייס", "משוחרר/מילואים", "בצוו 8"])
-            p_loc = st.selectbox("מיקום נוכחי", ["ביחידה (בפעילות)", "בבית (אפטר)", 'במקום אחר (קורס/בי"ח)'])
-            submit_p = st.form_submit_button("עדכן סטטוס حייאל")
+        with st.form("login_form"):
+            user_input = st.text_input("שם משתמש (תפקיד/מחלקה)")
+            pass_input = st.text_input("סיסמה", type="password")
+            submit_login = st.form_submit_button("התחבר")
             
-            if submit_p:
-                st.session_state.personnel = st.session_state.personnel[st.session_state.personnel['שם'] != p_name]
-                new_p = pd.DataFrame([[selected_company, p_name, p_status, p_loc]], 
-                                     columns=['פלוגה', 'שם', 'סטטוס_גיוס', 'מיקום'])
-                st.session_state.personnel = pd.concat([st.session_state.personnel, new_p], ignore_index=True)
-                st.success(f"הסטטוס של {p_name} עודכן")
+            if submit_login:
+                if pass_input in passwords:
+                    st.session_state.logged_in = True
+                    st.session_state.user_role = passwords[pass_input]
+                    st.rerun()
+                else:
+                    st.error("סיסמה שגויה. נסה שוב.")
 
-    with tab3:
-        st.subheader("📝 דיווח אירוע חריג")
-        with st.form("event_form"):
-            event_type = st.selectbox("סוג אירוע", ["🚒 בטיחות", "🚑 רפואי", "⚔️ מבצעי", "⚖️ משמעת", "❓ אחר"])
-            event_desc = st.text_area("פירוט האירוע")
-            submit_event = st.form_submit_button("🚀 שלח דיווח דחוף לגדוד")
-            
-            if submit_event:
-                new_event = pd.DataFrame([[datetime.now().strftime("%d/%m %H:%M"), selected_company, event_type, event_desc]], 
-                                         columns=['זמן', 'פלוגה', 'סוג_אירוע', 'תיאור'])
-                st.session_state.events = pd.concat([st.session_state.events, new_event], ignore_index=True)
-                st.error("הדיווח נשלח למג\"ד!")
-
-# --- תצוגת גדוד (למג"ד - ה-Dashboard הידידותי) ---
+# --- תצוגת האפליקציה לאחר התחברות ---
+if not st.session_state.logged_in:
+    login_screen()
 else:
-    st.title("🏛️ חמ\"ל גדודי - גדוד 1864")
-    
-    # --- 1. אירועים חריגים ככרטיסים (Cards) ---
-    st.markdown("### ⚠️ אירועים חריגים אחרונים")
-    if not st.session_state.events.empty:
-        # הצגת 3 אירועים אחרונים ככרטיסים מעוצבים
-        latest_events = st.session_state.events.iloc[::-1].head(3)
-        for index, row in latest_events.iterrows():
-            st.markdown(f"""
-                <div class="event-card">
-                    <span class="event-time">{row['זמן']}</span> - 
-                    <span class="event-co">פלוגת {row['פלוגה']}</span> | 
-                    <strong>{row['סוג_אירוע']}</strong>
-                    <div class="event-desc">{row['תיאור']}</div>
-                </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("אין אירועים חריגים מדווחים ✅")
-    
-    st.divider()
+    # סרגל צד מעוצב
+    with st.sidebar:
+        if os.path.exists("battalion_logo.png"):
+            st.image("battalion_logo.png", width=100)
+        st.markdown(f'<div class="sidebar-title">שלום, {st.session_state.user_role}</div>', unsafe_allow_html=True)
+        
+        if st.session_state.user_role == "מג\"ד":
+            view_mode = st.radio("בחר תצוגה:", ["ניהול פלוגה", "תמונת מצב גדודית"], index=1)
+        else:
+            view_mode = "ניהול פלוגה"
+            st.info(f"מחובר למערכת פלוגת {st.session_state.user_role}")
+        
+        if st.button("התנתק"):
+            st.session_state.logged_in = False
+            st.rerun()
 
-    # --- 2. סיכום כוח אדם כקוביות נתונים (Metrics) ---
-    st.markdown("### 👥 מצב כוח אדם גדודי")
-    if not st.session_state.personnel.empty:
-        col_a, col_b, col_c = st.columns(3)
+    # לוגיקה לפי תפקיד
+    if view_mode == "ניהול פלוגה":
+        # אם זה מג"ד הוא בוחר פלוגה, אם זה מ"פ זה נעול על הפלוגה שלו
+        if st.session_state.user_role == "מג\"ד":
+            selected_company = st.selectbox("בחר פלוגה לניהול:", ["ירדן", "גלבוע", "תענך", "עפולה", "פלס\"ם אג\"ם"])
+        else:
+            selected_company = st.session_state.user_role
+            
+        st.title(f"📊 ניהול - פלוגת {selected_company}")
         
-        # חישוב נתונים
-        total_deployed = len(st.session_state.personnel[st.session_state.personnel['סטטוס_גיוס'] == "מגוייס"])
-        in_unit = len(st.session_state.personnel[st.session_state.personnel['מיקום'] == "ביחידה (בפעילות)"])
-        at_home = len(st.session_state.personnel[st.session_state.personnel['מיקום'] == "בבית (אפטר)"])
+        tab1, tab2, tab3 = st.tabs(["💣 תחמושת", "👥 כוח אדם", "⚠️ אירועים"])
         
-        # הצגה כקוביות
-        with col_a: st.metric("סך מגוייסים", total_deployed, help="חיילים בסטטוס 'מגוייס'")
-        with col_b: st.metric("נמצאים ביחידה", in_unit, delta=f"{in_unit} ח'")
-        with col_c: st.metric("נמצאים בבית", at_home, delta=f"-{at_home} ח'", delta_color="inverse")
-        
-        st.markdown("#### פירוט לפי פלוגות")
-        # טבלה מעוצבת יותר (use_container_width)
-        summary_table = st.session_state.personnel.groupby(['פלוגה', 'מיקום']).size().unstack(fill_value=0)
-        st.dataframe(summary_table, use_container_width=True)
+        with tab1:
+            st.subheader("דיווח צריכה")
+            col1, col2 = st.columns(2)
+            with col1: item = st.selectbox("סוג", ["5.56", "7.62", "רימון", "לאו", "מטול"])
+            with col2: amount = st.number_input("כמות", min_value=1, step=1)
+            if st.button("שלח דיווח"):
+                new_report = pd.DataFrame([[selected_company, "תחמושת", item, amount, datetime.now().strftime("%H:%M")]], columns=['פלוגה', 'סוג_דיווח', 'פרטים', 'כמות', 'זמן'])
+                st.session_state.all_data = pd.concat([st.session_state.all_data, new_report], ignore_index=True)
+                st.success("נרשם.")
+
+        with tab2:
+            st.subheader("עדכון כוח אדם")
+            with st.form("p_form"):
+                p_name = st.text_input("שם החייל")
+                p_status = st.selectbox("סטטוס", ["מגוייס", "משוחרר/מילואים", "בצוו 8"])
+                p_loc = st.selectbox("מיקום", ["ביחידה", "בבית", "אחר"])
+                if st.form_submit_button("עדכן"):
+                    st.session_state.personnel = st.session_state.personnel[st.session_state.personnel['שם'] != p_name]
+                    new_p = pd.DataFrame([[selected_company, p_name, p_status, p_loc]], columns=['פלוגה', 'שם', 'סטטוס_גיוס', 'מיקום'])
+                    st.session_state.personnel = pd.concat([st.session_state.personnel, new_p], ignore_index=True)
+                    st.success("עודכן.")
+
+        with tab3:
+            st.subheader("דיווח חריג")
+            with st.form("e_form"):
+                e_type = st.selectbox("סוג", ["בטיחות", "רפואי", "מבצעי", "משמעת"])
+                e_desc = st.text_area("פירוט")
+                if st.form_submit_button("שלח דחוף"):
+                    new_event = pd.DataFrame([[datetime.now().strftime("%H:%M"), selected_company, e_type, e_desc]], columns=['זמן', 'פלוגה', 'סוג_אירוע', 'תיאור'])
+                    st.session_state.events = pd.concat([st.session_state.events, new_event], ignore_index=True)
+                    st.error("הדיווח נשלח למג\"ד")
+
     else:
-        st.info("אין נתוני כוח אדם")
-    
-    st.divider()
-    
-    # --- 3. סיכום תחמושת כגרף מעוצב ---
-    st.markdown("### 💣 צריכת תחמושת גדודית")
-    if not st.session_state.all_data.empty:
-        ammo_df = st.session_state.all_data[st.session_state.all_data['סוג_דיווח'] == "תחמושת"]
-        ammo_summary = ammo_df.groupby(['פלוגה', 'פרטים'])['כמות'].sum().unstack(fill_value=0)
+        # תצוגת מג"ד
+        st.title("🏛️ חמ\"ל גדודי - חרב שאול")
+        st.markdown("### ⚠️ אירועים חריגים")
+        if not st.session_state.events.empty:
+            for i, row in st.session_state.events.iloc[::-1].head(5).iterrows():
+                st.markdown(f'<div class="event-card"><b>{row["זמן"]} | פלוגת {row["פלוגה"]}</b><br>{row["תיאור"]}</div>', unsafe_allow_html=True)
         
-        # גרף ברים צבעוני
-        st.bar_chart(ammo_summary)
-    else:
-        st.info("טרם התקבלו דיווחי תחמושת")
+        st.divider()
+        st.markdown("### 👥 מצב כוח אדם גדודי")
+        if not st.session_state.personnel.empty:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("מגוייסים", len(st.session_state.personnel[st.session_state.personnel['סטטוס_גיוס'] == "מגוייס"]))
+            c2.metric("ביחידה", len(st.session_state.personnel[st.session_state.personnel['מיקום'] == "ביחידה"]))
+            c3.metric("בבית", len(st.session_state.personnel[st.session_state.personnel['מיקום'] == "בבית"]))
+            st.dataframe(st.session_state.personnel.groupby(['פלוגה', 'מיקום']).size().unstack(fill_value=0), use_container_width=True)
