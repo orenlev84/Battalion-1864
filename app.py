@@ -3,135 +3,127 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# --- הגדרות תצוגה כלליות ---
-st.set_page_config(
-    page_title="חרב שאול - ניהול גדודי",
-    page_icon="⚔️",
-    layout="wide"
-)
+# --- הגדרות דף ---
+st.set_page_config(page_title='חרב שאול - שו"ב גדודי', page_icon="⚔️", layout="wide")
 
-# --- עיצוב CSS מתקדם (מירכוז ויישור RTL) ---
+# --- CSS למירכוז ויישור לימין ---
 st.markdown("""
     <style>
-    /* פונט Assistant ויישור RTL כללי */
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
-    html, body, [class*="css"]  { font-family: 'Assistant', sans-serif; text-align: right; direction: rtl; }
+    html, body, [class*="css"] { font-family: 'Assistant', sans-serif; text-align: right; direction: rtl; }
     
-    /* מירכוז מושלם של מסך הכניסה (הלוגו מעל הטקסט) */
-    .center-column-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        width: 100%;
-        margin-top: 50px; /* מרווח קטן מלמעלה */
-    }
+    /* מירכוז מסך הכניסה */
+    .login-header { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; }
+    .stButton>button { width: 100%; height: 3em; border-radius: 12px; font-weight: bold; }
     
-    /* עיצוב סמל הגדוד (ממורכז) */
-    .battalion-logo { margin-bottom: 0px; }
+    /* עיצוב כרטיסי אירועים חריגים */
+    .event-card { background-color: #fef2f2; border: 2px solid #ef4444; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
     
-    /* עיצוב כותרות (ממורכזות) */
-    .app-title { color: #1e3a8a; font-weight: bold; margin-bottom: 0px; margin-top: 0px;}
-    .app-subtitle { color: #666; font-size: 1.2rem; margin-top: 0px; margin-bottom: 30px;}
-
-    /* עיצוב תיבת הטופס (ממורכזת) */
-    .login-form-box { width: 100%; max-width: 400px; }
-    
-    /* עיצוב כפתורים גדולים */
-    .stButton>button { width: 100%; height: 3.5em; border-radius: 12px; font-weight: bold; font-size: 18px;}
-    
-    /* עיצוב סרגל צד */
-    .sidebar-title { text-align: center; color: #1e3a8a; font-weight: bold; font-size: 1.5em; }
-
-    /* תיקון ליישור טפסים, תיבות בחירה ואינפוטים לימין */
-    div[data-testid="stForm"] > label { text-align: right; width: 100%; }
-    div[data-testid="stSelectbox"] > label { text-align: right; width: 100%; }
-    div[data-testid="stTextInput"] > label { text-align: right; width: 100%; }
+    /* תיקון ליישור טפסים */
+    div[data-testid="stForm"] { direction: rtl !important; text-align: right !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ניהול נתונים בזיכרון (מתאפס ברענון) ---
-if 'all_data' not in st.session_state:
-    st.session_state.all_data = pd.DataFrame(columns=['פלוגה', 'סוג_דיווח', 'פרטים', 'כמות', 'זמן'])
-if 'personnel' not in st.session_state:
-    st.session_state.personnel = pd.DataFrame(columns=['פלוגה', 'שם', 'סטטוס_גיוס', 'מיקום'])
-if 'events' not in st.session_state:
-    st.session_state.events = pd.DataFrame(columns=['זמן', 'פלוגה', 'סוג_אירוע', 'תיאור'])
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'user_role' not in st.session_state:
-    st.session_state.user_role = None
+# --- ניהול נתונים בזיכרון ---
+for key in ['all_data', 'personnel', 'events']:
+    if key not in st.session_state:
+        st.session_state[key] = pd.DataFrame() # אתחול כטבלה ריקה
 
-# --- מילון סיסמאות לפי תפקיד/פלוגה ---
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'user_role' not in st.session_state: st.session_state.user_role = None
+
+# --- מילון סיסמאות ---
 passwords_map = {
-    "מג\"ד": "magad123",
-    "ירדן": "yarden123",
-    "גלבוע": "gilboa123",
-    "תענך": "taanach123",
-    "עפולה": "hafoola123",
-    "פלס\"ם אג\"ם": "palsam123"
+    "מג\"ד": "magad123", "ירדן": "yarden123", "גלבוע": "gilboa123",
+    "תענך": "taanach123", "עפולה": "hafoola123", "פלס\"ם אג\"ם": "palsam123"
 }
 
-# --- מסך כניסה ממוקז ומשודרג ---
+# --- מסך כניסה ---
 def login_screen():
-    # יצירת המיכל הממרכז (Flexbox Column)
-    st.markdown('<div class="center-column-container">', unsafe_allow_html=True)
-    
-    # 1. סמל הגדוד (ממורכז)
-    if os.path.exists("battalion_logo.png"):
-        st.image("battalion_logo.png", width=180, caption="")
-    else:
-        st.warning("לא נמצא קובץ סמל. וודא שהעלת אותו ל-GitHub בשם 'battalion_logo.png'")
+    _, col_mid, _ = st.columns([1, 2, 1])
+    with col_mid:
+        st.markdown('<div class="login-header">', unsafe_allow_html=True)
+        if os.path.exists("battalion_logo.png"):
+            st.image("battalion_logo.png", width=180)
+        st.markdown('<h1>מערכת חרב שאול</h1><h3 style="color:gray;">גדוד 1864</h3>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
-    # 2. כותרות האפליקציה (ממורכזות)
-    st.markdown('<h1 class="app-title">מערכת חרב שאול</h1>', unsafe_allow_html=True)
-    st.markdown('<h3 class="app-subtitle">גדוד 1864 - ניהול מבצעי</h3>', unsafe_allow_html=True)
-    
-    # 3. תיבת טופס הכניסה (ממורכזת)
-    with st.container():
         with st.form("login_form"):
-            # שימוש בתיבת בחירה (Selectbox) עבור שם המשתמש
             user_choice = st.selectbox("בחר תפקיד / פלוגה", list(passwords_map.keys()))
             pass_input = st.text_input("סיסמה", type="password")
-            submit_login = st.form_submit_button("התחבר")
-            
-            if submit_login:
-                # בדיקת התאמה בין הפלוגה שנבחרה לסיסמה
+            if st.form_submit_button("התחבר"):
                 if pass_input == passwords_map[user_choice]:
                     st.session_state.logged_in = True
                     st.session_state.user_role = user_choice
                     st.rerun()
-                else:
-                    st.error("סיסמה שגויה עבור הפלוגה שנבחרה")
-    st.markdown('</div>', unsafe_allow_html=True) # סגירת מיכל המירכוז
+                else: st.error("סיסמה שגויה")
 
-# --- לוגיקה של האפליקציה ---
+# --- תוכן האפליקציה ---
 if not st.session_state.logged_in:
     login_screen()
 else:
-    # כאן ממשיך שאר הקוד המקורי של האפליקציה (סרגל צד, ניהול פלוגות וגדוד) כפי שהיה
+    # סרגל צד
     with st.sidebar:
-        if os.path.exists("battalion_logo.png"):
-            st.image("battalion_logo.png", width=100)
-        st.markdown(f'<div class="sidebar-title">שלום, {st.session_state.user_role}</div>', unsafe_allow_html=True)
-        
+        if os.path.exists("battalion_logo.png"): st.image("battalion_logo.png", width=100)
+        st.subheader(f"שלום, {st.session_state.user_role}")
+        view_mode = "ניהול פלוגה"
         if st.session_state.user_role == "מג\"ד":
-            view_mode = st.radio("בחר תצוגה:", ["ניהול פלוגה", "תמונת מצב גדודית"], index=1)
-        else:
-            view_mode = "ניהול פלוגה"
-        
+            view_mode = st.radio("תפריט:", ["תמונת מצב גדודית", "ניהול פלוגה"])
         if st.button("התנתק"):
             st.session_state.logged_in = False
             st.rerun()
-            
+
+    # לוגיקה ניהולית
     if view_mode == "ניהול פלוגה":
-        # בחירת פלוגה (נעול עבור מ"פ, פתוח עבור מג"ד)
-        if st.session_state.user_role == "מג\"ד":
-            # הרשימה ללא המג"ד עצמו
-            selected_company = st.selectbox("בחר פלוגה לניהול:", list(passwords_map.keys())[1:])
-        else:
-            selected_company = st.session_state.user_role
+        selected_company = st.session_state.user_role if st.session_state.user_role != "מג\"ד" else st.selectbox("בחר פלוגה:", list(passwords_map.keys())[1:])
+        st.title(f"📊 ניהול - פלוגת {selected_company}")
+        
+        t1, t2, t3 = st.tabs(["💣 תחמושת", "👥 כוח אדם", "⚠️ אירועים"])
+        
+        with t1:
+            st.subheader("דיווח תחמושת")
+            c1, c2 = st.columns(2)
+            with c1: itm = st.selectbox("סוג", ["5.56", "7.62", "רימון", "לאו", "מטול"])
+            with c2: qty = st.number_input("כמות", min_value=1, step=1)
+            if st.button("שלח"):
+                new_row = pd.DataFrame([[selected_company, "תחמושת", itm, qty, datetime.now().strftime("%H:%M")]], columns=['פלוגה','סוג_דיווח','פרטים','כמות','זמן'])
+                st.session_state.all_data = pd.concat([st.session_state.all_data, new_row], ignore_index=True)
+                st.success("דיווח נשמר")
+
+        with t2:
+            st.subheader("כוח אדם")
+            up_file = st.file_uploader("העלאת אקסל (שם, סטטוס_גיוס, מיקום)", type=['xlsx'])
+            if up_file:
+                df_ex = pd.read_excel(up_file)
+                df_ex['פלוגה'] = selected_company
+                st.session_state.personnel = pd.concat([st.session_state.personnel, df_ex], ignore_index=True)
+                st.success("נטען בהצלחה")
             
-        st.title(f"📊 ניהול נתונים - פלוגת {selected_company}")
-        # ... כאן יש להעתיק את הקוד המקורי של הלשוניות: תחמושת, אקסל כ"א, ואירועים חריגים ...
+            with st.form("manual_p"):
+                name = st.text_input("שם חייל")
+                stat = st.selectbox("סטטוס", ["מגוייס", "מילואים"])
+                loc = st.selectbox("מיקום", ["ביחידה", "בבית", "אחר"])
+                if st.form_submit_button("עדכן ידנית"):
+                    new_p = pd.DataFrame([[selected_company, name, stat, loc]], columns=['פלוגה','שם','סטטוס_גיוס','מיקום'])
+                    st.session_state.personnel = pd.concat([st.session_state.personnel, new_p], ignore_index=True)
+                    st.success("עודכן")
+
+        with t3:
+            st.subheader("אירוע חריג")
+            with st.form("ev"):
+                tp = st.selectbox("סוג", ["בטיחות", "רפואי", "מבצעי"])
+                ds = st.text_area("תיאור")
+                if st.form_submit_button("דיווח דחוף"):
+                    new_e = pd.DataFrame([[datetime.now().strftime("%H:%M"), selected_company, tp, ds]], columns=['זמן','פלוגה','סוג_אירוע','תיאור'])
+                    st.session_state.events = pd.concat([st.session_state.events, new_e], ignore_index=True)
+                    st.error("דיווח נשלח")
+
+    else:
+        st.title("🏛️ חמ\"ל גדודי - חרב שאול")
+        st.markdown("### ⚠️ חריגים")
+        if not st.session_state.events.empty:
+            st.table(st.session_state.events.iloc[::-1])
+        st.divider()
+        st.markdown("### 👥 כוח אדם")
+        if not st.session_state.personnel.empty:
+            st.dataframe(st.session_state.personnel, use_container_width=True)
