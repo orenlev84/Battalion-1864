@@ -11,28 +11,21 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
     html, body, [class*="css"] { font-family: 'Assistant', sans-serif; text-align: right; direction: rtl; }
-    
-    /* מירכוז מסך הכניסה */
     .login-header { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; }
     .stButton>button { width: 100%; height: 3em; border-radius: 12px; font-weight: bold; }
-    
-    /* עיצוב כרטיסי אירועים חריגים */
-    .event-card { background-color: #fef2f2; border: 2px solid #ef4444; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
-    
-    /* תיקון ליישור טפסים */
     div[data-testid="stForm"] { direction: rtl !important; text-align: right !important; }
+    /* עיצוב עורך הנתונים */
+    [data-testid="stDataEditor"] { direction: rtl !important; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- ניהול נתונים בזיכרון ---
-for key in ['all_data', 'personnel', 'events']:
-    if key not in st.session_state:
-        st.session_state[key] = pd.DataFrame() # אתחול כטבלה ריקה
-
+if 'all_data' not in st.session_state: st.session_state.all_data = pd.DataFrame(columns=['פלוגה','סוג_דיווח','פרטים','כמות','זמן'])
+if 'personnel' not in st.session_state: st.session_state.personnel = pd.DataFrame(columns=['פלוגה','שם','סטטוס_גיוס','מיקום'])
+if 'events' not in st.session_state: st.session_state.events = pd.DataFrame(columns=['זמן','פלוגה','סוג_אירוע','תיאור'])
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_role' not in st.session_state: st.session_state.user_role = None
 
-# --- מילון סיסמאות ---
 passwords_map = {
     "מג\"ד": "magad123", "ירדן": "yarden123", "גלבוע": "gilboa123",
     "תענך": "taanach123", "עפולה": "hafoola123", "פלס\"ם אג\"ם": "palsam123"
@@ -43,11 +36,9 @@ def login_screen():
     _, col_mid, _ = st.columns([1, 2, 1])
     with col_mid:
         st.markdown('<div class="login-header">', unsafe_allow_html=True)
-        if os.path.exists("battalion_logo.png"):
-            st.image("battalion_logo.png", width=180)
+        if os.path.exists("battalion_logo.png"): st.image("battalion_logo.png", width=180)
         st.markdown('<h1>מערכת חרב שאול</h1><h3 style="color:gray;">גדוד 1864</h3>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        
         with st.form("login_form"):
             user_choice = st.selectbox("בחר תפקיד / פלוגה", list(passwords_map.keys()))
             pass_input = st.text_input("סיסמה", type="password")
@@ -58,11 +49,9 @@ def login_screen():
                     st.rerun()
                 else: st.error("סיסמה שגויה")
 
-# --- תוכן האפליקציה ---
 if not st.session_state.logged_in:
     login_screen()
 else:
-    # סרגל צד
     with st.sidebar:
         if os.path.exists("battalion_logo.png"): st.image("battalion_logo.png", width=100)
         st.subheader(f"שלום, {st.session_state.user_role}")
@@ -73,7 +62,6 @@ else:
             st.session_state.logged_in = False
             st.rerun()
 
-    # לוגיקה ניהולית
     if view_mode == "ניהול פלוגה":
         selected_company = st.session_state.user_role if st.session_state.user_role != "מג\"ד" else st.selectbox("בחר פלוגה:", list(passwords_map.keys())[1:])
         st.title(f"📊 ניהול - פלוגת {selected_company}")
@@ -91,39 +79,63 @@ else:
                 st.success("דיווח נשמר")
 
         with t2:
-            st.subheader("כוח אדם")
-            up_file = st.file_uploader("העלאת אקסל (שם, סטטוס_גיוס, מיקום)", type=['xlsx'])
-            if up_file:
-                df_ex = pd.read_excel(up_file)
-                df_ex['פלוגה'] = selected_company
-                st.session_state.personnel = pd.concat([st.session_state.personnel, df_ex], ignore_index=True)
-                st.success("נטען בהצלחה")
+            st.subheader("ניהול מצבת כוח אדם")
             
-            with st.form("manual_p"):
-                name = st.text_input("שם חייל")
-                stat = st.selectbox("סטטוס", ["מגוייס", "מילואים"])
-                loc = st.selectbox("מיקום", ["ביחידה", "בבית", "אחר"])
-                if st.form_submit_button("עדכן ידנית"):
-                    new_p = pd.DataFrame([[selected_company, name, stat, loc]], columns=['פלוגה','שם','סטטוס_גיוס','מיקום'])
-                    st.session_state.personnel = pd.concat([st.session_state.personnel, new_p], ignore_index=True)
-                    st.success("עודכן")
+            # 1. העלאת אקסל
+            uploaded_file = st.file_uploader("טען מצבה מאקסל (עמודות: שם, סטטוס_גיוס, מיקום)", type=['xlsx'])
+            if uploaded_file:
+                try:
+                    df_excel = pd.read_excel(uploaded_file)
+                    df_excel['פלוגה'] = selected_company
+                    # סינון עמודות רלוונטיות בלבד
+                    df_filtered = df_excel[['פלוגה', 'שם', 'סטטוס_גיוס', 'מיקום']]
+                    st.session_state.personnel = pd.concat([st.session_state.personnel, df_filtered], ignore_index=True).drop_duplicates(subset=['שם'], keep='last')
+                    st.success(f"נטענו {len(df_filtered)} חיילים בהצלחה")
+                except Exception as e:
+                    st.error(f"שגיאה בקריאת הקובץ. וודא שהעמודות הן: שם, סטטוס_גיוס, מיקום. ({e})")
+
+            st.divider()
+            
+            # 2. עריכה ומחיקה (Data Editor)
+            st.markdown("#### ✏️ עריכה והסרת חיילים")
+            st.info("ניתן לערוך תאים ישירות או לסמן שורה וללחוץ Delete במקלדת")
+            
+            # סינון המאגר רק לפלוגה הנבחרת לצורך עריכה
+            company_personnel = st.session_state.personnel[st.session_state.personnel['פלוגה'] == selected_company]
+            
+            edited_df = st.data_editor(
+                company_personnel,
+                column_order=("שם", "סטטוס_גיוס", "מיקום"),
+                num_rows="dynamic", # מאפשר הוספה ומחיקה של שורות
+                use_container_width=True,
+                key="personnel_editor"
+            )
+            
+            if st.button("שמור שינויים במצבה"):
+                # עדכון המאגר הכללי בנתונים שנערכו
+                other_companies = st.session_state.personnel[st.session_state.personnel['פלוגה'] != selected_company]
+                st.session_state.personnel = pd.concat([other_companies, edited_df], ignore_index=True)
+                st.success("המצבה עודכנה ונשמרה!")
 
         with t3:
             st.subheader("אירוע חריג")
             with st.form("ev"):
-                tp = st.selectbox("סוג", ["בטיחות", "רפואי", "מבצעי"])
+                tp = st.selectbox("סוג", ["בטיחות", "רפואי", "מבצעי", "משמעת"])
                 ds = st.text_area("תיאור")
                 if st.form_submit_button("דיווח דחוף"):
                     new_e = pd.DataFrame([[datetime.now().strftime("%H:%M"), selected_company, tp, ds]], columns=['זמן','פלוגה','סוג_אירוע','תיאור'])
                     st.session_state.events = pd.concat([st.session_state.events, new_e], ignore_index=True)
-                    st.error("דיווח נשלח")
+                    st.error("דיווח נשלח למג\"ד")
 
     else:
+        # תצוגת מג"ד (סיכום גדודי)
         st.title("🏛️ חמ\"ל גדודי - חרב שאול")
-        st.markdown("### ⚠️ חריגים")
+        st.markdown("### ⚠️ חריגים אחרונים")
         if not st.session_state.events.empty:
-            st.table(st.session_state.events.iloc[::-1])
+            for i, row in st.session_state.events.iloc[::-1].iterrows():
+                st.markdown(f'<div class="event-card"><b>{row["זמן"]} | {row["פלוגה"]}</b><br>{row["תיאור"]}</div>', unsafe_allow_html=True)
+        
         st.divider()
-        st.markdown("### 👥 כוח אדם")
+        st.markdown("### 👥 מצבת כ"א גדודית")
         if not st.session_state.personnel.empty:
             st.dataframe(st.session_state.personnel, use_container_width=True)
