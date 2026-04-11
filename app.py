@@ -7,14 +7,15 @@ import os
 st.set_page_config(page_title="Herev Shaul", layout="wide")
 st.markdown("<style>direction:rtl; text-align:right; * {font-family:'Assistant',sans-serif;}</style>", unsafe_allow_html=True)
 
-# --- 2. אתחול מאגרי נתונים ---
-if 'all_data' not in st.session_state: st.session_state.all_data = pd.DataFrame(columns=['company','type','item','qty','time'])
-if 'personnel' not in st.session_state: st.session_state.personnel = pd.DataFrame(columns=['company','name','status','location'])
-if 'events' not in st.session_state: st.session_state.events = pd.DataFrame(columns=['time','company','type','desc'])
-if 'equipment' not in st.session_state: st.session_state.equipment = pd.DataFrame(columns=['company','item','req','has','status'])
-if 'comms' not in st.session_state: st.session_state.comms = pd.DataFrame(columns=['company','item','req','has','status'])
+# --- 2. אתחול מאגרי נתונים (חובה שיופיעו בהתחלה) ---
+for k in ['all_data', 'personnel', 'events', 'equipment', 'comms']:
+    if k not in st.session_state:
+        st.session_state[k] = pd.DataFrame()
 
-if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'role' not in st.session_state:
+    st.session_state.role = None
 
 # --- 3. מערכת כניסה ---
 passwords = {"magad123":"מג\"ד","yarden123":"ירדן","gilboa123":"גלבוע","taanach123":"תענך","hafoola123":"עפולה","palsam123":"פלס\"ם אג\"ם"}
@@ -29,11 +30,12 @@ if not st.session_state.logged_in:
             if st.form_submit_button("כניסה"):
                 correct_pass = [k for k, v in passwords.items() if v == u][0]
                 if p == correct_pass:
-                    st.session_state.logged_in, st.session_state.role = True, u
+                    st.session_state.role = u
+                    st.session_state.logged_in = True
                     st.rerun()
                 else: st.error("סיסמה שגויה")
 else:
-    # --- 4. תפריט צד ---
+    # --- 4. תפריט צד (מוצג רק אחרי התחברות) ---
     with st.sidebar:
         st.write(f"שלום {st.session_state.role}")
         view = "פלוגה"
@@ -41,6 +43,7 @@ else:
             view = st.radio("תפריט", ["גדודי", "פלוגה"])
         if st.button("התנתקות"):
             st.session_state.logged_in = False
+            st.session_state.role = None
             st.rerun()
 
     # --- 5. ניהול פלוגה ---
@@ -48,7 +51,7 @@ else:
         co = st.session_state.role if st.session_state.role != "מג\"ד" else st.selectbox("פלוגה", ["ירדן","גלבוע","תענך","עפולה","פלס\"ם אג\"ם"])
         t1, t2, t3, t4, t5 = st.tabs(["כוח אדם", "תחמושת", "צל\"ם", "תקשוב", "חריגים"])
         
-        with t1: # כ"א
+        with t1: # כוח אדם
             df_p = st.session_state.personnel
             curr_p = df_p[df_p['company']==co] if not df_p.empty else pd.DataFrame(columns=['company','name','status','location'])
             ed_p = st.data_editor(curr_p, num_rows="dynamic", use_container_width=True, column_config={"status": st.column_config.SelectboxColumn("סטטוס", options=["בבסיס","בבית","אחר"])})
