@@ -16,7 +16,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. אתחול מאגרי נתונים (הוספת תקשוב בנפרד)
+# 3. אתחול מאגרי נתונים
 if 'all_data' not in st.session_state: st.session_state.all_data = pd.DataFrame(columns=['פלוגה','סוג','פרטים','כמות','זמן'])
 if 'personnel' not in st.session_state: st.session_state.personnel = pd.DataFrame(columns=['פלוגה','שם','סטטוס','מיקום'])
 if 'events' not in st.session_state: st.session_state.events = pd.DataFrame(columns=['זמן','פלוגה','סוג','תיאור'])
@@ -62,7 +62,6 @@ else:
         sel_co = st.session_state.user_role if st.session_state.user_role != "מג\"ד" else st.selectbox("בחר פלוגה", ["ירדן", "גלבוע", "תענך", "עפולה", "פלס\"ם אג\"ם"])
         st.header(f"ניהול פלוגת {sel_co}")
         
-        # הפרדת לשוניות: צל"ם ותקשוב בנפרד
         tabs = st.tabs(["תחמושת", "כוח אדם", "צל\"ם", "תקשוב", "אירועים"])
         
         with tabs[0]: # תחמושת
@@ -91,7 +90,11 @@ else:
             st.subheader("ניהול צל\"ם ונשק")
             co_eq = st.session_state.equipment[st.session_state.equipment['פלוגה'] == sel_co]
             if co_eq.empty:
-                co_eq = pd.DataFrame([[sel_co, "M4", 0, 0, "תקין"], [sel_co, "מאג", 0, 0, "תקין"]], columns=st.session_state.equipment.columns)
+                # הגדרת נתונים בשורות נפרדות למניעת שגיאות כיווניות
+                row1 = [sel_co, "M4", 0, 0, "תקין"]
+                row2 = [sel_co, "מאג", 0, 0, "תקין"]
+                co_eq = pd.DataFrame([row1, row2], columns=st.session_state.equipment.columns)
+            
             ed_eq = st.data_editor(co_eq, num_rows="dynamic", use_container_width=True, key="eq_edit")
             if st.button("שמור צל\"ם"):
                 st.session_state.equipment = pd.concat([st.session_state.equipment[st.session_state.equipment['פלוגה'] != sel_co], ed_eq], ignore_index=True)
@@ -101,7 +104,11 @@ else:
             st.subheader("ניהול ציוד תקשוב")
             co_cm = st.session_state.comms[st.session_state.comms['פלוגה'] == sel_co]
             if co_cm.empty:
-                co_cm = pd.DataFrame([[sel_co, "710", 0, 0, "תקין"], [sel_co, "624", 0, 0, "תקין"]], columns=st.session_state.comms.columns)
+                # הגדרת נתונים בשורות נפרדות למניעת שגיאות כיווניות
+                row_c1 = [sel_co, "710", 0, 0, "תקין"]
+                row_c2 = [sel_co, "624", 0, 0, "תקין"]
+                co_cm = pd.DataFrame([row_c1, row_c2], columns=st.session_state.comms.columns)
+            
             ed_cm = st.data_editor(co_cm, num_rows="dynamic", use_container_width=True, key="cm_edit")
             if st.button("שמור תקשוב"):
                 st.session_state.comms = pd.concat([st.session_state.comms[st.session_state.comms['פלוגה'] != sel_co], ed_cm], ignore_index=True)
